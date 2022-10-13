@@ -1,6 +1,6 @@
-# Isolated spoke
+# Purpose
 
-The example data structure for the .auto.tfvars file(s) is below.
+This repo will build a network in Azure Australia East and deploy a Windows Server 2022 VM to the network. It will install the DHCP role on the server. The example data structure for the .auto.tfvars file(s) is below.
 
 ## State file
 
@@ -9,40 +9,44 @@ The example data structure for the .auto.tfvars file(s) is below.
 lowerlevel_storage_account_name = "tfstorageaccount"
 lowerlevel_container_name       = "tfstate"
 lowerlevel_resource_group_name  = "tfstate-rg"
-lowerlevel_key                  = "spoke/isolated.tfstate"
+lowerlevel_key                  = "packer/demo.tfstate"
 subscription_id                 = <Sub ID>
 ```
 
 ## Resource Groups, Networks, Public IP Addresses
 
-```Network
+# Resource Groups
+```Resource Groups
 rg_suffix = "-rg"
 
-# Resource Groups
 resource_groups = {
   region1_spoke_resource_group = {
-    name     = "spoke"
+    name     = "packerdemo"
     location = "australiaeast"
     tags = {
-      application = "appName"
-      role        = "App Function"
-      location    = "Australia East"
+      IsBillable   = "false"
+      CreatedBy    = "matt.ashby@theinstillery.com"
+      Environment  = "dev"
+      Project      = "Internal"
+      CustomerName = "Internal"
     }
   },
 }
+```
 
+# Networks
+```Network
 vnet_suffix = "-vnet"
 nsg_suffix  = "-nsg"
 rt_suffix   = "-rt"
 
-# Networks
 networking_object = {
   vnet = {
     region1_spoke_vnet = {
-      name               = "spoke"
+      name               = "packer"
       location           = "australiaeast"
-      virtual_network_rg = "spoke-rg"
-      address_space      = ["10.48.16.128/26"]
+      virtual_network_rg = "packer-rg"
+      address_space      = ["10.0.0.0/27"]
       dns                = ["10.48.131.69"]
       enable_ddos_std    = false
       ddos_id            = "<to be added later>"
@@ -53,19 +57,7 @@ networking_object = {
       }
     },
   }
-  specialsubnets = {
-    # region1_GatewaySubnet = {
-    #   name                 = "GatewaySubnet"
-    #   cidr                 = "10.48.0.0/26"
-    #   location             = "australiacentral"
-    #   virtual_network_rg   = "spoke-rg"
-    #   virtual_network_name = "spoke-vnet"
-    #   service_endpoints    = []
-    #   nsg_inbound = []
-    #   nsg_outbound = []
-    # }
-  }
-  subnets = {
+   subnets = {
     region1_spoke_subnet = {
       name                 = "subnet"
       cidr                 = "10.48.16.128/26"
@@ -139,13 +131,13 @@ IP_address_object = {
 
 ## VMs, Data disks
 
+# Virtual Machines
 ```VM
 vm_suffix      = "-vm"
 os_disk_suffix = "-osdisk"
 disk_suffix    = "-disk"
 nic_suffix     = "-nic"
 
-# Virtual Machines
 vm_object = {
   vms = {
     region1_vm1 = {

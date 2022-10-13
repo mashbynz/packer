@@ -66,6 +66,13 @@ output "special_subnets" {
   value = azurerm_subnet.s_subnet
 }
 
+output "bastion" {
+  description = "Returns the details of the bastion host created"
+  depends_on  = [azurerm_bastion_host.bastion]
+
+  value = azurerm_bastion_host.bastion
+}
+
 output "nsgs" {
   description = "Returns the full set of NSGs created"
   depends_on  = [azurerm_network_security_group.nsg]

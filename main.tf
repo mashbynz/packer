@@ -1,18 +1,18 @@
 terraform {
   required_version = ">= 0.12.20"
   backend "azurerm" {
+    # this means the state will be stored in an Azure storage account
+  }
+  required_providers {
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "= 3.26.0"
+    }
   }
 }
 
 provider "azurerm" {
-  version = "= 2.0.0"
   features {}
-
-  # Required if deploying via service principal
-  # subscription_id = var.subscription_id
-  # client_id       = var.client_id
-  # client_secret   = var.client_secret
-  # tenant_id       = var.tenant_id
 }
 
 data "terraform_remote_state" "landingzone_spoke" {

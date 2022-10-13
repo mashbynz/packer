@@ -58,6 +58,12 @@ output "spoke_special_subnets" {
   value = module.spoke_network.special_subnets
 }
 
+output "spoke_bastion" {
+  description = "Returns the details of the bastion host created"
+
+  value = module.spoke_network.bastion
+}
+
 output "spoke_NSGs" {
   description = "Returns the full set of NSGs created"
 

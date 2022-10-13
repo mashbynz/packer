@@ -38,13 +38,13 @@ resource "azurerm_virtual_network" "vnet" {
 resource "azurerm_subnet" "s_subnet" {
   for_each = var.networking_object.specialsubnets
 
-  name                                           = each.value.name
-  resource_group_name                            = each.value.virtual_network_rg
-  virtual_network_name                           = each.value.virtual_network_name
-  address_prefix                                 = each.value.cidr
-  service_endpoints                              = lookup(each.value, "service_endpoints", [])
-  enforce_private_link_endpoint_network_policies = lookup(each.value, "enforce_private_link_endpoint_network_policies", null)
-  enforce_private_link_service_network_policies  = lookup(each.value, "enforce_private_link_service_network_policies", null)
+  name                                          = each.value.name
+  resource_group_name                           = each.value.virtual_network_rg
+  virtual_network_name                          = each.value.virtual_network_name
+  address_prefixes                              = each.value.cidr
+  service_endpoints                             = lookup(each.value, "service_endpoints", [])
+  private_endpoint_network_policies_enabled     = lookup(each.value, "enforce_private_link_endpoint_network_policies", null)
+  private_link_service_network_policies_enabled = lookup(each.value, "enforce_private_link_service_network_policies", null)
 
   dynamic "delegation" {
     for_each = lookup(each.value, "delegation", {}) != {} ? [1] : []
@@ -64,17 +64,49 @@ resource "azurerm_subnet" "s_subnet" {
   ]
 }
 
+# Azure Bastion Host
+resource "azurerm_bastion_host" "bastion" {
+  for_each = var.networking_object.bastion
+
+  name                   = each.value.name
+  location               = each.value.location
+  resource_group_name    = each.value.virtual_network_rg
+  copy_paste_enabled     = each.value.copy_paste_enabled
+  file_copy_enabled      = each.value.file_copy_enabled
+  sku                    = each.value.sku
+  ip_connect_enabled     = each.value.ip_connect_enabled
+  scale_units            = each.value.scale_units
+  shareable_link_enabled = each.value.shareable_link_enabled
+  tunneling_enabled      = each.value.tunneling_enabled
+  tags                   = lookup(each.value, "tags", null) == null ? local.tags : merge(local.tags, each.value.tags)
+
+  dynamic "ip_configuration" {
+    for_each = lookup(each.value, "ip_configuration", {}) != {} ? [1] : []
+
+    content {
+      name                 = lookup(each.value.ip_configuration, "name", null)
+      subnet_id            = lookup(each.value.ip_configuration, "subnet_id", null) != null ? azurerm_subnet.s_subnet[lookup(each.value.ip_configuration, "subnet_id", "")].id : null
+      public_ip_address_id = lookup(each.value.ip_configuration, "public_ip_address_id", null) != null ? azurerm_public_ip.public_ip[lookup(each.value.ip_configuration, "public_ip_address_id", "")].id : null
+
+    }
+  }
+
+  depends_on = [
+    azurerm_virtual_network.vnet
+  ]
+}
+
 # Other Subnets
 resource "azurerm_subnet" "v_subnet" {
   for_each = var.networking_object.subnets
 
-  name                                           = each.value.name
-  resource_group_name                            = each.value.virtual_network_rg
-  virtual_network_name                           = each.value.virtual_network_name
-  address_prefix                                 = each.value.cidr
-  service_endpoints                              = lookup(each.value, "service_endpoints", [])
-  enforce_private_link_endpoint_network_policies = lookup(each.value, "enforce_private_link_endpoint_network_policies", null)
-  enforce_private_link_service_network_policies  = lookup(each.value, "enforce_private_link_service_network_policies", null)
+  name                                          = each.value.name
+  resource_group_name                           = each.value.virtual_network_rg
+  virtual_network_name                          = each.value.virtual_network_name
+  address_prefixes                              = each.value.cidr
+  service_endpoints                             = lookup(each.value, "service_endpoints", [])
+  private_endpoint_network_policies_enabled     = lookup(each.value, "enforce_private_link_endpoint_network_policies", null)
+  private_link_service_network_policies_enabled = lookup(each.value, "enforce_private_link_service_network_policies", null)
 
   dynamic "delegation" {
     for_each = lookup(each.value, "delegation", {}) != {} ? [1] : []
