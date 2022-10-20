@@ -1,27 +1,28 @@
 # Purpose
 
-This repo will build a network in Azure Australia East and deploy a Windows Server 2022 VM to the network. It will install the DHCP role on the server. The example data structure for the .auto.tfvars file(s) is below.
+This repo will build a VNet and Bastion in Azure Australia East and deploy a Windows Server 2022 VM to the network. It will install the DHCP role on the server. The example data structure for the .auto.tfvars file(s) is below.
 
-## State file
+## Diagram
+![](assets/Packer%20Demo.png)
+
+# State file
 
 ```State
 # state file
 lowerlevel_storage_account_name = "tfstorageaccount"
 lowerlevel_container_name       = "tfstate"
 lowerlevel_resource_group_name  = "tfstate-rg"
-lowerlevel_key                  = "packer/demo.tfstate"
+lowerlevel_key                  = "packer/state.tfstate"
 subscription_id                 = <Sub ID>
 ```
 
-## Resource Groups, Networks, Public IP Addresses
-
-# Resource Groups
+# Resource Group Object
 ```Resource Groups
 rg_suffix = "-rg"
 
 resource_groups = {
   region1_spoke_resource_group = {
-    name     = "packerdemo"
+    name     = "packer"
     location = "australiaeast"
     tags = {
       IsBillable   = "false"
@@ -34,7 +35,7 @@ resource_groups = {
 }
 ```
 
-# Networks
+# Network Object
 ```Network
 vnet_suffix = "-vnet"
 nsg_suffix  = "-nsg"
@@ -42,96 +43,94 @@ rt_suffix   = "-rt"
 
 networking_object = {
   vnet = {
-    region1_spoke_vnet = {
+    region1_packer_vnet = {
       name               = "packer"
       location           = "australiaeast"
       virtual_network_rg = "packer-rg"
-      address_space      = ["10.0.0.0/27"]
-      dns                = ["10.48.131.69"]
+      address_space      = ["10.0.0.0/25"]
       enable_ddos_std    = false
-      ddos_id            = "<to be added later>"
       tags = {
-        application = "appName"
-        role        = "App Function"
-        location    = "Australia East"
+        product = "packer"
       }
     },
   }
-   subnets = {
-    region1_spoke_subnet = {
-      name                 = "subnet"
-      cidr                 = "10.48.16.128/26"
+  specialsubnets = {
+    region1_BastionSubnet = {
+      name                 = "AzureBastionSubnet"
+      cidr                 = ["10.0.0.0/26"]
       location             = "australiaeast"
-      virtual_network_rg   = "spoke-rg"
-      virtual_network_name = "spoke-vnet"
-      service_endpoints = []
-      nsg_inbound = [
-        # [name, priority, direction, action, protocol, source_port_range, destination_port_range, source_address_prefix, destination_address_prefix],
-        ["ICMP", "100", "Inbound", "Allow", "Icmp", "*", "*", "*", "*"],
-      ]
-      nsg_outbound = []
-      # delegation = {
-      #   name = "acctestdelegation1"
-      #   service_delegation = {
-      #     name    = "Microsoft.ContainerInstance/containerGroups"
-      #     actions = ["Microsoft.Network/virtualNetworks/subnets/join/action", "Microsoft.Network/virtualNetworks/subnets/prepareNetworkPolicies/action"]
-      #   }
-      # }
-      disable_bgp_route_propagation = true #optional
-      route_entries = [
-        #[name, prefix, next_hop_type, next_hop_in_ip_address]
-        ["Default", "0.0.0.0/0", "VirtualAppliance", "10.48.253.6"],
-      ]
+      virtual_network_rg   = "packer-rg"
+      virtual_network_name = "packer-vnet"
+      service_endpoints    = []
+      nsg_inbound          = []
+      nsg_outbound         = []
+    },
+  }
+  bastion = {
+    region1_packer_bastion = {
+      name                   = "bastion"
+      location               = "australiaeast"
+      virtual_network_rg     = "packer-rg"
+      copy_paste_enabled     = true
+      file_copy_enabled      = false
+      sku                    = "Standard"
+      ip_connect_enabled     = false
+      scale_units            = "2"
+      shareable_link_enabled = false
+      tunneling_enabled      = false
+
+      ip_configuration = {
+        name                 = "ip_config_1"
+        subnet_id            = "region1_BastionSubnet"
+        public_ip_address_id = "region1_bastion_ip"
+      }
+    },
+  }
+  subnets = {
+    region1_packer_subnet = {
+      name                 = "subnet"
+      cidr                 = ["10.0.0.64/27"]
+      location             = "australiaeast"
+      virtual_network_rg   = "packer-rg"
+      virtual_network_name = "packer-vnet"
+      service_endpoints    = []
+      nsg_inbound          = []
+      nsg_outbound         = []
+      route_entries        = []
       tags = {
-        application = "appName"
-        role        = "App Function"
-        location    = "Australia East"
+        product = "packer"
       }
     },
   }
   peerings = {
-    # hubToSpoke = {
-    #   name                      = "toSpoke"
-    #   resource_group_name       = "hub-rg"
-    #   virtual_network_name      = "hub-vnet"
-    #   remote_virtual_network_id = "spoke"
-    #   allow_forwarded_traffic   = true
-    # },
-    # spokeToHub = {
-    #   name                      = "toHub"
-    #   resource_group_name       = "spoke-rg"
-    #   virtual_network_name      = "spoke-vnet"
-    #   remote_virtual_network_id = "hub"
-    #   allow_forwarded_traffic   = false
-    # },
   }
 }
+```
+
+# IP Object
+```IP Object
 
 ip_suffix = "-pip"
 
 IP_address_object = {
   public = {
-    # region1_application_ip = {
-    #   name                = "appName"
-    #   resource_group_name = "appName-rg"
-    #   location            = "australiaeast"
-    #   allocation_method   = "Static"
-    #   sku                 = "Standard"
-    #   ip_version          = "IPv4"
+    region1_bastion_ip = {
+      name                = "packer"
+      resource_group_name = "packer-rg"
+      location            = "australiaeast"
+      allocation_method   = "Static"
+      sku                 = "Standard"
+      ip_version          = "IPv4"
 
-    #   tags = {
-    #     application = "appName"
-    #     role        = "application server"
-    #     location    = "Australia East"
-    #   }
-    # },
+      tags = {
+        product = "packer"
+      }
+    },
   }
 }
 ```
 
-## VMs, Data disks
-
-# Virtual Machines
+# Virtual Machine Object
 ```VM
 vm_suffix      = "-vm"
 os_disk_suffix = "-osdisk"
@@ -141,24 +140,23 @@ nic_suffix     = "-nic"
 vm_object = {
   vms = {
     region1_vm1 = {
-      name                          = "VMNAME"
-      resource_group_name           = "spoke-rg"
+      name                          = "packer"
+      resource_group_name           = "packer-rg"
       location                      = "australiaeast"
-      size                          = "Standard_DS3_v2"
+      size                          = "Standard_D2s_v3"
       os                            = "Windows"
       delete_os_disk_on_termination = true
       network_interface_ids         = "region1_vm1_nic"
-      admin_username                = "admin"
+      admin_username                = "packeradm"
       admin_password                = "P@ssw0rd1!"
       os_profile = {
         provision_vm_agent = true
         license_type       = "Windows_Server"
-        #Support for BYOL (HUB) - values can be "Windows_Server" or "Windows_Client"
       }
       storage_image_reference = {
         publisher = "MicrosoftWindowsServer"
         offer     = "WindowsServer"
-        sku       = "2019-Datacenter"
+        sku       = "2022-Datacenter"
         version   = "latest"
       }
       storage_os_disk = {
@@ -171,71 +169,38 @@ vm_object = {
         storage_account_uri = "region1_diagnostics_storage"
       }
       tags = {
-        application = "appName"
-        role        = "App Function"
-        location    = "Australia East"
+        product  = "packer"
+        role     = "packer demo"
+        location = "Australia East"
       }
     },
   }
   nics = {
     region1_vm1_nic = {
-      name                = "VMNAME"
-      resource_group_name = "spoke-rg"
+      name                = "packer"
+      resource_group_name = "packer-rg"
       location            = "australiaeast"
       ip_configuration = {
         config_1 = {
           name                          = "ip_config_1"
-          subnet_id                     = "region1_spoke_subnet"
-          private_ip_address_allocation = "Static"
-          private_ip_address            = "10.48.16.133"
+          subnet_id                     = "region1_packer_subnet"
+          private_ip_address_allocation = "Dynamic"
           public_ip_address_id          = null
           primary                       = true
         },
-        config_2 = {
-          name                          = "ip_config_2"
-          subnet_id                     = "region1_spoke_subnet"
-          private_ip_address_allocation = "Static"
-          private_ip_address            = "10.48.16.134"
-          public_ip_address_id          = null
-          primary                       = false
-        },
-        config_3 = {
-          name                          = "ip_config_3"
-          subnet_id                     = "region1_spoke_subnet"
-          private_ip_address_allocation = "Static"
-          private_ip_address            = "10.48.16.135"
-          public_ip_address_id          = null
-          primary                       = false
-        },
-        config_4 = {
-          name                          = "ip_config_4"
-          subnet_id                     = "region1_spoke_subnet"
-          private_ip_address_allocation = "Static"
-          private_ip_address            = "10.48.16.136"
-          public_ip_address_id          = null
-          primary                       = false
-        },
-        config_5 = {
-          name                          = "ip_config_5"
-          subnet_id                     = "region1_spoke_subnet"
-          private_ip_address_allocation = "Static"
-          private_ip_address            = "10.48.16.137"
-          public_ip_address_id          = null
-          primary                       = false
-        },
       }
       tags = {
-        application = "appName"
-        role        = "App Function"
-        location    = "Australia East"
+        product  = "packer"
+        role     = "packer demo"
+        location = "Australia East"
       }
     },
   }
   data_disks = {
     region1_vm1_disk1 = {
-      name                 = "VMNAME"
+      name                 = "packer"
       virtual_machine      = "region1_vm1"
-      resource_group_name  = "spoke-rg"
+      resource_group_name  = "packer-rg"
       location             = "australiaeast"
       storage_account_type = "Premium_LRS"
       create_option        = "Empty"
@@ -245,45 +210,9 @@ vm_object = {
       lun                  = "10"
       caching              = "ReadWrite"
       tags = {
-        application = "appName"
-        role        = "App Function"
-        location    = "Australia East"
-      }
-    },
-    region1_vm1_disk2 = {
-      name                 = "VMNAME"
-      virtual_machine      = "region1_vm1"
-      resource_group_name  = "spoke-rg"
-      location             = "australiaeast"
-      storage_account_type = "Premium_LRS"
-      create_option        = "Empty"
-      disk_size_gb         = 128
-      disk_letter          = "-F"
-      disk_count           = "02"
-      lun                  = "20"
-      caching              = "ReadWrite"
-      tags = {
-        application = "appName"
-        role        = "App Function"
-        location    = "Australia East"
-      }
-    },
-    region1_vm1_disk3 = {
-      name                 = "VMNAME"
-      virtual_machine      = "region1_vm1"
-      resource_group_name  = "spoke-rg"
-      location             = "australiaeast"
-      storage_account_type = "Premium_LRS"
-      create_option        = "Empty"
-      disk_size_gb         = 128
-      disk_letter          = "-F"
-      disk_count           = "03"
-      lun                  = "30"
-      caching              = "ReadWrite"
-      tags = {
-        application = "appName"
-        role        = "App Function"
-        location    = "Australia East"
+        product  = "packer"
+        role     = "packer demo"
+        location = "Australia East"
       }
     },
   }
