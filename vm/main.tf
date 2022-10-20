@@ -28,7 +28,7 @@ resource "azurerm_network_interface" "nic" {
 resource "azurerm_windows_virtual_machine" "vm" {
   for_each = var.vm_object.vms
 
-  name                  = each.value.name
+  name                  = "${each.value.name}${var.vm_suffix}"
   resource_group_name   = each.value.resource_group_name
   location              = each.value.location
   size                  = each.value.size

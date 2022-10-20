@@ -123,6 +123,7 @@ output "spoke_ip_address_ids" {
 ##################################################################################################
 output "spoke_virtual_machines" {
   description = "Returns the full set of Virtual Machines created"
+  sensitive   = true
 
   value = module.spoke_vm.virtual_machines
 }
