@@ -54,6 +54,8 @@ resource "azurerm_windows_virtual_machine" "vm" {
     version   = each.value.storage_image_reference.version
   }
 
+  # source_image_id = each.value.source_image_id
+
   # boot_diagnostics {
   #   storage_account_uri = var.governance_storage_accounts[each.value.boot_diagnostics.storage_account_uri].primary_blob_endpoint
   # }

@@ -10,3 +10,6 @@
 
 # Lock files
 *.lock.hcl
+
+# .pkrvars files
+*.pkrvars.hcl
