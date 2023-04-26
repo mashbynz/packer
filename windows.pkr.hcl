@@ -3,6 +3,13 @@ locals {
     ChargeTo    = "Internal"
     environment = "non prod"
   }
+  vmprefix = "VM"
+}
+
+# Separate definition for this variable so it can be treated as sensitive
+local "winrm_password" {
+  expression = var.winrm_password
+  sensitive  = true
 }
 
 source "azure-arm" "Server2022" {
@@ -11,7 +18,7 @@ source "azure-arm" "Server2022" {
   image_offer                       = var.w22image_offer
   image_publisher                   = var.w22image_publisher
   image_sku                         = var.w22image_sku
-  managed_image_name                = var.w22managed_image_name
+  managed_image_name                = join("", [local.vmprefix, var.w22managed_image_name])
   managed_image_resource_group_name = var.w22managed_image_resource_group_name
   os_type                           = var.w22os_type
   subscription_id                   = var.w22subscription_id
@@ -20,10 +27,10 @@ source "azure-arm" "Server2022" {
   winrm_insecure                    = var.w22winrm_insecure
   winrm_timeout                     = var.w22winrm_timeout
   winrm_use_ssl                     = var.w22winrm_use_ssl
-  winrm_username                    = var.w22winrm_username
+  winrm_username                    = var.winrm_username
+  winrm_password                    = local.winrm_password
   use_azure_cli_auth                = var.w22use_azure_cli_auth # uses the az login user context to build the VM. User account must have access to build a new VM in the target RG
-  # floppy_files                      = ["./scripts/webServer.ps1"]
-  # floppy_files                      = ["./scripts/webServer.ps1", "./scripts/sysprep.ps1"]
+  # floppy_files                      = ["./scripts/webServer.ps1", "./scripts/sysprep.ps1"] # VMWare source only
 
   azure_tags = var.w22azure_tags == null ? local.azure_tags : merge(local.azure_tags, var.w22azure_tags)
 }
@@ -38,8 +45,9 @@ build {
   ]
 
   provisioner "powershell" {
+    # post-processor "powershell" {} Option if using a different provisioner
+    # Generalise and sysprep
     inline = [
-      "Add-WindowsFeature Web-Server",
       "while ((Get-Service RdAgent).Status -ne 'Running') { Start-Sleep -s 5 }",
       "while ((Get-Service WindowsAzureGuestAgent).Status -ne 'Running') { Start-Sleep -s 5 }",
       "& $env:SystemRoot\\System32\\Sysprep\\Sysprep.exe /oobe /generalize /quiet /quit",

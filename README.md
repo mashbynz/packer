@@ -1,11 +1,16 @@
+## **- FOR TESTING ONLY -**
+
 # Purpose
 
-This repo will build a VNet and Bastion in Azure Australia East and deploy a Windows Server 2022 VM to the network. It will install the DHCP role on the server. The example data structure for the .auto.tfvars file(s) is below.
+This repo will build a VNet and Bastion in Azure Australia East using Terraform. Packer will create a Windows Server 2022 image and store it in the same RG. The bastion is used to connect to a VM built from this image to confirm configuration of the VM.
 
+The example data structure for the .auto.tfvars file(s) is below.
+
+# Terraform
 ## Diagram
 ![](assets/Packer%20Demo.png)
 
-# State file
+## State file
 
 ```State
 # state file
@@ -16,7 +21,7 @@ lowerlevel_key                  = "packer/state.tfstate"
 subscription_id                 = <Sub ID>
 ```
 
-# Resource Group Object
+## Resource Group Object
 ```Resource Groups
 rg_suffix = "-rg"
 
@@ -35,7 +40,7 @@ resource_groups = {
 }
 ```
 
-# Network Object
+## Network Object
 ```Network
 vnet_suffix = "-vnet"
 nsg_suffix  = "-nsg"
@@ -107,7 +112,7 @@ networking_object = {
 }
 ```
 
-# IP Object
+## IP Object
 ```IP Object
 
 ip_suffix = "-pip"
@@ -130,7 +135,7 @@ IP_address_object = {
 }
 ```
 
-# Virtual Machine Object
+## Virtual Machine Object
 ```VM
 vm_suffix      = "-vm"
 os_disk_suffix = "-osdisk"
@@ -216,5 +221,33 @@ vm_object = {
       }
     },
   }
+}
+```
+
+# Packer
+## Windows Server 2022 
+```
+w22build_resource_group_name         = "packer-rg"
+w22communicator                      = "winrm"
+w22image_offer                       = "WindowsServer"
+w22image_publisher                   = "MicrosoftWindowsServer"
+w22image_sku                         = "2022-Datacenter"
+w22managed_image_name                = "PackerImage"
+w22managed_image_resource_group_name = "packer-rg"
+w22os_type                           = "Windows"
+w22subscription_id                   = <Sub ID>
+w22tenant_id                         = <Tenant ID>
+w22vm_size                           = "Standard_D2s_v3"
+w22winrm_insecure                    = true
+
+w22winrm_timeout                     = "5m"
+w22winrm_use_ssl                     = true
+
+winrm_username                       = "packer"
+winrm_password                       = <sensitive password>
+w22use_azure_cli_auth                = true
+w22azure_tags = {
+  product = "packer"
+  role    = "packer demo 2"
 }
 ```

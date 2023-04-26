@@ -1,24 +1,3 @@
-# build_resource_group_name         = "packer-rg"
-# communicator                      = "winrm"
-# image_offer                       = "WindowsServer"
-# image_publisher                   = "MicrosoftWindowsServer"
-# image_sku                         = "2022-Datacenter"
-# managed_image_name                = "myPackerImage"
-# managed_image_resource_group_name = "packer-rg"
-# os_type                           = "Windows"
-# subscription_id                   = "635b2aee-1f07-404d-9851-5b4f8a84cf13"
-# tenant_id                         = "a4d44117-bb20-4668-a0dc-16fcb91100b7"
-# vm_size                           = "Standard_D2s_v3"
-# winrm_insecure                    = true
-# winrm_timeout                     = "5m"
-# winrm_use_ssl                     = true
-# winrm_username                    = "packer"
-# use_azure_cli_auth                = true # uses the az login user context to build the VM. User account must have access to build a new VM in the target RG
-# azure_tags = {
-#   product = "packer"
-#   role    = "packer demo"
-# }
-
 # Windows Server
 variable "w22build_resource_group_name" {
   description = "(Required) Resource Group to deploy the Image into"
@@ -78,8 +57,12 @@ variable "w22winrm_use_ssl" {
   type        = bool
 }
 
-variable "w22winrm_username" {
+variable "winrm_username" {
   description = "(Required) Admin Username for the built Image"
+}
+
+variable "winrm_password" {
+  description = "(Required) List the tags for the Image object"
 }
 
 variable "w22use_azure_cli_auth" {
