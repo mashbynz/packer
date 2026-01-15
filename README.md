@@ -238,7 +238,64 @@ packer build \
 
 ### Architecture Diagram
 
-![Architecture](assets/Packer%20Demo.png)
+```mermaid
+flowchart TB
+    subgraph Azure["Azure Australia East"]
+        subgraph RG["packer-rg"]
+            subgraph VNet["packer-vnet (10.0.0.0/25)"]
+                subgraph BastionSubnet["AzureBastionSubnet (10.0.0.0/26)"]
+                    Bastion[Azure Bastion]
+                end
+                subgraph Subnet["subnet (10.0.0.64/27)"]
+                    BuildVM[Temporary Build VM]
+                    TestVM[Test VM]
+                end
+            end
+
+            subgraph Images["Managed Images"]
+                ADDS[ADDS Image]
+                DNS[DNS Image]
+                DHCP[DHCP Image]
+                FileServices[File Services Image]
+                PrintServices[Print Services Image]
+                HyperV[Hyper-V Image]
+                ADCS[ADCS Image]
+                WebServer[Web Server Image]
+            end
+        end
+
+        PIP[Public IP]
+    end
+
+    subgraph Packer["Packer Build Process"]
+        direction TB
+        P1[1. Common Config]
+        P2[2. ConnectWise Agent]
+        P3[3. Role Installation]
+        P4[4. Sysprep]
+        P1 --> P2 --> P3 --> P4
+    end
+
+    subgraph Marketplace["Azure Marketplace"]
+        WinServer[Windows Server 2022 Core]
+    end
+
+    User([User/Admin]) --> Bastion
+    Bastion --> TestVM
+    PIP --> Bastion
+
+    WinServer --> BuildVM
+    BuildVM --> Packer
+    Packer --> Images
+
+    Images -.-> TestVM
+
+    style Azure fill:#0078D4,color:#fff
+    style RG fill:#50E6FF,color:#000
+    style VNet fill:#773ADC,color:#fff
+    style Packer fill:#02A8EF,color:#fff
+    style Images fill:#7FBA00,color:#fff
+```
 
 ### State File Configuration
 
