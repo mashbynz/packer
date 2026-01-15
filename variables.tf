@@ -69,3 +69,22 @@ variable "nic_suffix" {
 variable "vm_object" {
   description = "(Required) configuration object describing the Virtual Machine configuration"
 }
+
+# -----------------------------------------------------------------------------
+# Packer Image Variables
+# -----------------------------------------------------------------------------
+
+variable "packer_images" {
+  description = "Map of Packer-built managed images. Key is the server role (e.g., 'adds', 'dns')"
+  type = map(object({
+    name                = string
+    resource_group_name = string
+  }))
+  default = {}
+}
+
+variable "packer_image_resource_group" {
+  description = "Default resource group containing Packer-built images"
+  type        = string
+  default     = "packer-rg"
+}

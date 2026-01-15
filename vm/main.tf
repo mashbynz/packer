@@ -1,3 +1,19 @@
+# -----------------------------------------------------------------------------
+# Data Source: Packer-built Managed Images
+# -----------------------------------------------------------------------------
+# Looks up Packer-built images by name when packer_images variable is provided
+
+data "azurerm_image" "packer" {
+  for_each = var.packer_images
+
+  name                = each.value.name
+  resource_group_name = each.value.resource_group_name
+}
+
+# -----------------------------------------------------------------------------
+# Network Interface Cards
+# -----------------------------------------------------------------------------
+
 resource "azurerm_network_interface" "nic" {
   for_each = var.vm_object.nics
 
@@ -25,6 +41,13 @@ resource "azurerm_network_interface" "nic" {
   ]
 }
 
+# -----------------------------------------------------------------------------
+# Windows Virtual Machines
+# -----------------------------------------------------------------------------
+# Supports two image source types:
+# 1. Marketplace images: Set storage_image_reference (default)
+# 2. Packer images: Set packer_image_role to use a Packer-built image
+
 resource "azurerm_windows_virtual_machine" "vm" {
   for_each = var.vm_object.vms
 
@@ -47,14 +70,20 @@ resource "azurerm_windows_virtual_machine" "vm" {
     disk_size_gb         = each.value.storage_os_disk.disk_size_gb
   }
 
-  source_image_reference {
-    publisher = each.value.storage_image_reference.publisher
-    offer     = each.value.storage_image_reference.offer
-    sku       = each.value.storage_image_reference.sku
-    version   = each.value.storage_image_reference.version
-  }
+  # Use Packer image if packer_image_role is specified, otherwise use marketplace
+  source_image_id = lookup(each.value, "packer_image_role", null) != null ? data.azurerm_image.packer[each.value.packer_image_role].id : null
 
-  # source_image_id = each.value.source_image_id
+  # Marketplace image reference - only used when packer_image_role is not set
+  dynamic "source_image_reference" {
+    for_each = lookup(each.value, "packer_image_role", null) == null ? [1] : []
+
+    content {
+      publisher = each.value.storage_image_reference.publisher
+      offer     = each.value.storage_image_reference.offer
+      sku       = each.value.storage_image_reference.sku
+      version   = each.value.storage_image_reference.version
+    }
+  }
 
   # boot_diagnostics {
   #   storage_account_uri = var.governance_storage_accounts[each.value.boot_diagnostics.storage_account_uri].primary_blob_endpoint
@@ -64,6 +93,10 @@ resource "azurerm_windows_virtual_machine" "vm" {
     azurerm_network_interface.nic
   ]
 }
+
+# -----------------------------------------------------------------------------
+# Managed Disks
+# -----------------------------------------------------------------------------
 
 resource "azurerm_managed_disk" "disk" {
   for_each = var.vm_object.data_disks
@@ -81,6 +114,10 @@ resource "azurerm_managed_disk" "disk" {
     azurerm_windows_virtual_machine.vm
   ]
 }
+
+# -----------------------------------------------------------------------------
+# Disk Attachments
+# -----------------------------------------------------------------------------
 
 resource "azurerm_virtual_machine_data_disk_attachment" "disk_attachment" {
   for_each = var.vm_object.data_disks

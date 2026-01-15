@@ -59,4 +59,8 @@ module "spoke_vm" {
   spoke_ip_addresses = module.spoke_network.ip_addresses
 
   vm_object = var.vm_object
+
+  # Packer image support
+  packer_images               = var.packer_images
+  packer_image_resource_group = var.packer_image_resource_group
 }

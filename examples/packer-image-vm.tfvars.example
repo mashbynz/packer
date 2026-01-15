@@ -1,0 +1,116 @@
+# =============================================================================
+# Example Terraform Variables - Deploy VMs from Packer-Built Images
+# =============================================================================
+# This example shows how to deploy VMs using custom Packer-built images
+# instead of Azure Marketplace images.
+#
+# Usage:
+#   1. Build Packer images first (see packer/ directory)
+#   2. Copy this file: cp examples/packer-image-vm.tfvars.example terraform.tfvars
+#   3. Update values for your environment
+#   4. Run: terraform plan && terraform apply
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Packer Image Configuration
+# -----------------------------------------------------------------------------
+# Define which Packer-built images are available for VM deployment.
+# The key (e.g., "adds", "dns") is referenced in vm_object.packer_image_role
+
+packer_images = {
+  adds = {
+    name                = "WindowsServer2022-Core-ADDS"
+    resource_group_name = "packer-rg"
+  }
+  dns = {
+    name                = "WindowsServer2022-Core-DNS"
+    resource_group_name = "packer-rg"
+  }
+  dhcp = {
+    name                = "WindowsServer2022-Core-DHCP"
+    resource_group_name = "packer-rg"
+  }
+  fileservices = {
+    name                = "WindowsServer2022-Core-FileServices"
+    resource_group_name = "packer-rg"
+  }
+  webserver = {
+    name                = "WindowsServer2022-Core-WebServer"
+    resource_group_name = "packer-rg"
+  }
+}
+
+# Default resource group for Packer images (used if not specified per-image)
+packer_image_resource_group = "packer-rg"
+
+# -----------------------------------------------------------------------------
+# VM Configuration Examples
+# -----------------------------------------------------------------------------
+# To use a Packer image, add "packer_image_role" to your VM definition.
+# The value must match a key in packer_images above.
+#
+# Example vm_object entries:
+
+# vm_object = {
+#   # VM using Packer-built ADDS image
+#   dc01 = {
+#     name                = "dc01"
+#     location            = "australiaeast"
+#     resource_group_name = "packer-rg"
+#     subnet_key          = "region1_packer_subnet"
+#     vm_size             = "Standard_D2s_v3"
+#     packer_image_role   = "adds"  # <-- Uses Packer image instead of marketplace
+#     admin_username      = "adminuser"
+#     os_disk = {
+#       caching              = "ReadWrite"
+#       storage_account_type = "Premium_LRS"
+#     }
+#     tags = {
+#       Role        = "DomainController"
+#       Environment = "dev"
+#     }
+#   }
+#
+#   # VM using Packer-built DNS image
+#   dns01 = {
+#     name                = "dns01"
+#     location            = "australiaeast"
+#     resource_group_name = "packer-rg"
+#     subnet_key          = "region1_packer_subnet"
+#     vm_size             = "Standard_D2s_v3"
+#     packer_image_role   = "dns"  # <-- Uses Packer DNS image
+#     admin_username      = "adminuser"
+#     os_disk = {
+#       caching              = "ReadWrite"
+#       storage_account_type = "Premium_LRS"
+#     }
+#     tags = {
+#       Role        = "DNSServer"
+#       Environment = "dev"
+#     }
+#   }
+#
+#   # VM using Azure Marketplace image (no packer_image_role specified)
+#   web01 = {
+#     name                = "web01"
+#     location            = "australiaeast"
+#     resource_group_name = "packer-rg"
+#     subnet_key          = "region1_packer_subnet"
+#     vm_size             = "Standard_D2s_v3"
+#     admin_username      = "adminuser"
+#     storage_image_reference = {
+#       publisher = "MicrosoftWindowsServer"
+#       offer     = "WindowsServer"
+#       sku       = "2022-datacenter-core"
+#       version   = "latest"
+#     }
+#     os_disk = {
+#       caching              = "ReadWrite"
+#       storage_account_type = "Premium_LRS"
+#     }
+#     tags = {
+#       Role        = "WebServer"
+#       Environment = "dev"
+#     }
+#   }
+# }

@@ -51,3 +51,20 @@ output "network_interface_card_ids" {
     group => azurerm_network_interface.nic[group].id
   }
 }
+
+# -----------------------------------------------------------------------------
+# Packer Image Outputs
+# -----------------------------------------------------------------------------
+
+output "packer_images" {
+  description = "Returns the Packer images data source results"
+  value       = data.azurerm_image.packer
+}
+
+output "packer_image_ids" {
+  description = "Returns a map of packer image role -> image id"
+  value = {
+    for role, image in data.azurerm_image.packer :
+    role => image.id
+  }
+}
