@@ -1,28 +1,173 @@
-## **- FOR TESTING ONLY -**
+# Azure Packer Windows Server Image Builder
 
-# Purpose
+Build custom Windows Server images on Azure using HashiCorp Packer with Terraform-managed infrastructure.
 
-This repo will build a VNet and Bastion in Azure Australia East using Terraform. Packer will create a Windows Server 2022 image and store it in the same RG. The bastion is used to connect to a VM built from this image to confirm configuration of the VM.
+## Overview
 
-The example data structure for the .auto.tfvars file(s) is below.
+This repository provides:
 
-# Terraform
-## Diagram
-![](assets/Packer%20Demo.png)
+- **Terraform**: Deploys Azure infrastructure (VNet, Bastion, Resource Groups) in Australia East
+- **Packer**: Creates custom Windows Server images with pre-configured software
+- **Azure Bastion**: Secure RDP access to test VMs built from custom images
 
-## State file
+## Prerequisites
 
-```State
-# state file
+- [Terraform](https://www.terraform.io/downloads) >= 1.0.0
+- [Packer](https://www.packer.io/downloads) >= 1.9.0
+- [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) >= 2.40.0
+- Azure subscription with Contributor access
+
+## Quick Start - Building a Windows Server 2022 Image
+
+### 1. Authenticate to Azure
+
+```bash
+az login
+az account set --subscription "<your-subscription-id>"
+```
+
+### 2. Deploy Infrastructure with Terraform
+
+```bash
+# Initialize Terraform
+terraform init
+
+# Review the plan
+terraform plan
+
+# Apply infrastructure
+terraform apply
+```
+
+### 3. Build the Windows Server Image with Packer
+
+```bash
+cd packer
+
+# Initialize Packer plugins
+packer init .
+
+# Validate the configuration
+packer validate -var-file=example.pkrvars.hcl .
+
+# Build the image
+packer build -var-file=example.pkrvars.hcl .
+```
+
+## Packer Configuration
+
+### Directory Structure
+
+```
+packer/
+├── windows.pkr.hcl          # Main build configuration
+├── variables.pkr.hcl        # Variable definitions with validation
+├── example.pkrvars.hcl      # Example variable values
+└── scripts/
+    └── webServer.ps1        # PowerShell provisioning script
+```
+
+### Windows Server 2022 Standard Example
+
+Create a file named `windows-server.auto.pkrvars.hcl` in the `packer/` directory:
+
+```hcl
+# Azure Authentication (uses Azure CLI by default)
+use_azure_cli_auth = true
+
+# Build Infrastructure
+build_resource_group_name = "packer-rg"
+vm_size                   = "Standard_D2s_v3"
+
+# WinRM Communication
+communicator   = "winrm"
+winrm_username = "packer"
+winrm_password = "YourSecurePassword123!"  # Use a strong password
+winrm_timeout  = "10m"
+winrm_use_ssl  = true
+winrm_insecure = true
+
+# Windows Server 2022 Standard Image
+image_publisher = "MicrosoftWindowsServer"
+image_offer     = "WindowsServer"
+image_sku       = "2022-datacenter"
+os_type         = "Windows"
+
+# Output Image
+managed_image_name                = "WindowsServer2022-Standard"
+managed_image_resource_group_name = "packer-rg"
+image_name_prefix                 = "VM"
+
+# Tags
+azure_tags = {
+  Project     = "Packer-Demo"
+  Owner       = "your-email@domain.com"
+  Application = "WebServer"
+}
+```
+
+### Alternative Windows Server SKUs
+
+| SKU | Description |
+|-----|-------------|
+| `2022-datacenter` | Windows Server 2022 Datacenter (Desktop Experience) |
+| `2022-datacenter-core` | Windows Server 2022 Datacenter Core |
+| `2022-datacenter-smalldisk` | Windows Server 2022 with smaller OS disk |
+| `2022-datacenter-azure-edition` | Azure-optimised Windows Server 2022 |
+| `2019-datacenter` | Windows Server 2019 Datacenter |
+
+### Packer Commands Reference
+
+```bash
+# Initialize plugins (required once)
+packer init .
+
+# Validate configuration syntax
+packer validate -var-file=<your-vars>.pkrvars.hcl .
+
+# Build with verbose output
+packer build -var-file=<your-vars>.pkrvars.hcl .
+
+# Build with debug logging
+PACKER_LOG=1 packer build -var-file=<your-vars>.pkrvars.hcl .
+
+# Build with specific variables
+packer build \
+  -var "managed_image_name=MyCustomImage" \
+  -var "image_sku=2022-datacenter-core" \
+  -var-file=<your-vars>.pkrvars.hcl .
+```
+
+### Sensitive Variables
+
+For production use, pass sensitive values via environment variables:
+
+```bash
+export PKR_VAR_winrm_password="YourSecurePassword123!"
+packer build -var-file=<your-vars>.pkrvars.hcl .
+```
+
+## Terraform Configuration
+
+### Architecture Diagram
+
+![Architecture](assets/Packer%20Demo.png)
+
+### State File Configuration
+
+Configure backend storage in your `.auto.tfvars`:
+
+```hcl
 lowerlevel_storage_account_name = "tfstorageaccount"
 lowerlevel_container_name       = "tfstate"
 lowerlevel_resource_group_name  = "tfstate-rg"
 lowerlevel_key                  = "packer/state.tfstate"
-subscription_id                 = <Sub ID>
+subscription_id                 = "<subscription-id>"
 ```
 
-## Resource Group Object
-```Resource Groups
+### Resource Group Configuration
+
+```hcl
 rg_suffix = "-rg"
 
 resource_groups = {
@@ -31,17 +176,18 @@ resource_groups = {
     location = "australiaeast"
     tags = {
       IsBillable   = "false"
-      CreatedBy    = "matt.ashby@theinstillery.com"
+      CreatedBy    = "your-email@domain.com"
       Environment  = "dev"
       Project      = "Internal"
       CustomerName = "Internal"
     }
-  },
+  }
 }
 ```
 
-## Network Object
-```Network
+### Network Configuration
+
+```hcl
 vnet_suffix = "-vnet"
 nsg_suffix  = "-nsg"
 rt_suffix   = "-rt"
@@ -57,7 +203,7 @@ networking_object = {
       tags = {
         product = "packer"
       }
-    },
+    }
   }
   specialsubnets = {
     region1_BastionSubnet = {
@@ -69,7 +215,7 @@ networking_object = {
       service_endpoints    = []
       nsg_inbound          = []
       nsg_outbound         = []
-    },
+    }
   }
   bastion = {
     region1_packer_bastion = {
@@ -83,13 +229,12 @@ networking_object = {
       scale_units            = "2"
       shareable_link_enabled = false
       tunneling_enabled      = false
-
       ip_configuration = {
         name                 = "ip_config_1"
         subnet_id            = "region1_BastionSubnet"
         public_ip_address_id = "region1_bastion_ip"
       }
-    },
+    }
   }
   subnets = {
     region1_packer_subnet = {
@@ -105,16 +250,15 @@ networking_object = {
       tags = {
         product = "packer"
       }
-    },
+    }
   }
-  peerings = {
-  }
+  peerings = {}
 }
 ```
 
-## IP Object
-```IP Object
+### Public IP Configuration
 
+```hcl
 ip_suffix = "-pip"
 
 IP_address_object = {
@@ -126,17 +270,19 @@ IP_address_object = {
       allocation_method   = "Static"
       sku                 = "Standard"
       ip_version          = "IPv4"
-
       tags = {
         product = "packer"
       }
-    },
+    }
   }
 }
 ```
 
-## Virtual Machine Object
-```VM
+### Test VM Configuration
+
+Deploy a VM from your custom image to verify the build:
+
+```hcl
 vm_suffix      = "-vm"
 os_disk_suffix = "-osdisk"
 disk_suffix    = "-disk"
@@ -178,7 +324,7 @@ vm_object = {
         role     = "packer demo"
         location = "Australia East"
       }
-    },
+    }
   }
   nics = {
     region1_vm1_nic = {
@@ -192,14 +338,14 @@ vm_object = {
           private_ip_address_allocation = "Dynamic"
           public_ip_address_id          = null
           primary                       = true
-        },
+        }
       }
       tags = {
         product  = "packer"
         role     = "packer demo"
         location = "Australia East"
       }
-    },
+    }
   }
   data_disks = {
     region1_vm1_disk1 = {
@@ -219,35 +365,85 @@ vm_object = {
         role     = "packer demo"
         location = "Australia East"
       }
-    },
+    }
   }
 }
 ```
 
-# Packer
-## Windows Server 2022 
+## Customising the Image
+
+### Adding Software
+
+Edit `packer/scripts/webServer.ps1` to install additional software:
+
+```powershell
+# Install additional Windows features
+Install-WindowsFeature -Name NET-Framework-45-Core -IncludeManagementTools
+
+# Install software via Chocolatey
+Set-ExecutionPolicy Bypass -Scope Process -Force
+[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+
+choco install -y 7zip
+choco install -y notepadplusplus
 ```
-w22build_resource_group_name         = "packer-rg"
-w22communicator                      = "winrm"
-w22image_offer                       = "WindowsServer"
-w22image_publisher                   = "MicrosoftWindowsServer"
-w22image_sku                         = "2022-Datacenter"
-w22managed_image_name                = "PackerImage"
-w22managed_image_resource_group_name = "packer-rg"
-w22os_type                           = "Windows"
-w22subscription_id                   = <Sub ID>
-w22tenant_id                         = <Tenant ID>
-w22vm_size                           = "Standard_D2s_v3"
-w22winrm_insecure                    = true
 
-w22winrm_timeout                     = "5m"
-w22winrm_use_ssl                     = true
+### Adding Multiple Provisioning Scripts
 
-winrm_username                       = "packer"
-winrm_password                       = <sensitive password>
-w22use_azure_cli_auth                = true
-w22azure_tags = {
-  product = "packer"
-  role    = "packer demo 2"
+Add additional provisioners in `windows.pkr.hcl`:
+
+```hcl
+build {
+  # ... existing configuration ...
+
+  provisioner "powershell" {
+    script = "${path.root}/scripts/webServer.ps1"
+  }
+
+  provisioner "powershell" {
+    script = "${path.root}/scripts/security-hardening.ps1"
+  }
+
+  provisioner "powershell" {
+    script = "${path.root}/scripts/install-monitoring.ps1"
+  }
+
+  # Sysprep provisioner (must be last)
+  provisioner "powershell" {
+    inline = [
+      # ... sysprep commands ...
+    ]
+  }
 }
 ```
+
+## Troubleshooting
+
+### Common Issues
+
+| Issue | Solution |
+|-------|----------|
+| WinRM connection timeout | Increase `winrm_timeout` value (e.g., `15m`) |
+| Authentication failure | Verify `az login` session is active |
+| Resource group not found | Ensure Terraform infrastructure is deployed first |
+| Sysprep failure | Check Azure agent services are running |
+
+### Enable Debug Logging
+
+```bash
+export PACKER_LOG=1
+export PACKER_LOG_PATH="packer-debug.log"
+packer build -var-file=<your-vars>.pkrvars.hcl .
+```
+
+## Security Considerations
+
+- Store sensitive values in environment variables or Azure Key Vault
+- Use strong passwords for WinRM (minimum 12 characters)
+- Review and customise the provisioning scripts for your security requirements
+- Consider using Azure Private Endpoints for production builds
+
+## License
+
+This project is for internal testing and demonstration purposes.

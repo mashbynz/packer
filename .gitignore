@@ -11,5 +11,8 @@
 # Lock files
 *.lock.hcl
 
-# .pkrvars files
-*.pkrvars.hcl
+# .pkrvars files (auto-loaded contain sensitive data)
+*.auto.pkrvars.hcl
+
+# Packer manifest output
+packer-manifest.json
