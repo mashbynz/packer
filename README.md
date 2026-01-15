@@ -1,14 +1,15 @@
 # Azure Packer Windows Server Image Builder
 
-Build custom Windows Server images on Azure using HashiCorp Packer with Terraform-managed infrastructure.
+Build custom Windows Server Core images on Azure using HashiCorp Packer with Terraform-managed infrastructure.
 
 ## Overview
 
 This repository provides:
 
 - **Terraform**: Deploys Azure infrastructure (VNet, Bastion, Resource Groups) in Australia East
-- **Packer**: Creates custom Windows Server images with pre-configured software
+- **Packer**: Creates custom Windows Server Core images with pre-configured server roles
 - **Azure Bastion**: Secure RDP access to test VMs built from custom images
+- **ConnectWise Manage**: All images include the ConnectWise Manage agent for remote management
 
 ## Prerequisites
 
@@ -17,7 +18,22 @@ This repository provides:
 - [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) >= 2.40.0
 - Azure subscription with Contributor access
 
-## Quick Start - Building a Windows Server 2022 Image
+## Supported Server Roles
+
+All images are Windows Server 2022 Core (no GUI) with ConnectWise Manage agent pre-installed.
+
+| Role | Build Target | Description |
+|------|--------------|-------------|
+| Web Server | `*.webserver` | IIS Web Server |
+| ADDS | `*.adds` | Active Directory Domain Services |
+| File Services | `*.fileservices` | File and Storage Services with DFS |
+| Print Services | `*.printservices` | Print and Document Services |
+| DNS | `*.dns` | DNS Server |
+| DHCP | `*.dhcp` | DHCP Server |
+| Hyper-V | `*.hyperv` | Hyper-V (requires nested virtualisation) |
+| ADCS | `*.adcs` | Active Directory Certificate Services |
+
+## Quick Start
 
 ### 1. Authenticate to Azure
 
@@ -29,29 +45,25 @@ az account set --subscription "<your-subscription-id>"
 ### 2. Deploy Infrastructure with Terraform
 
 ```bash
-# Initialize Terraform
 terraform init
-
-# Review the plan
 terraform plan
-
-# Apply infrastructure
 terraform apply
 ```
 
-### 3. Build the Windows Server Image with Packer
+### 3. Build a Server Role Image
 
 ```bash
 cd packer
 
+# Set required credentials
+export PKR_VAR_connectwise_token="your-connectwise-token"
+export PKR_VAR_winrm_password="YourSecurePassword123!"
+
 # Initialize Packer plugins
 packer init .
 
-# Validate the configuration
-packer validate -var-file=example.pkrvars.hcl .
-
-# Build the image
-packer build -var-file=example.pkrvars.hcl .
+# Build a specific role (e.g., DNS Server)
+packer build -only="*.dns" -var-file=examples/dns.pkrvars.hcl .
 ```
 
 ## Packer Configuration
@@ -60,19 +72,94 @@ packer build -var-file=example.pkrvars.hcl .
 
 ```
 packer/
-├── windows.pkr.hcl          # Main build configuration
-├── variables.pkr.hcl        # Variable definitions with validation
-├── example.pkrvars.hcl      # Example variable values
-└── scripts/
-    └── webServer.ps1        # PowerShell provisioning script
+├── variables.pkr.hcl              # Shared variable definitions
+├── locals.pkr.hcl                 # Shared local values
+├── roles/                         # Role-specific build files
+│   ├── webserver.pkr.hcl
+│   ├── adds.pkr.hcl
+│   ├── fileservices.pkr.hcl
+│   ├── printservices.pkr.hcl
+│   ├── dns.pkr.hcl
+│   ├── dhcp.pkr.hcl
+│   ├── hyperv.pkr.hcl
+│   └── adcs.pkr.hcl
+├── scripts/
+│   ├── common/                    # Shared provisioning scripts
+│   │   ├── Install-ConnectWiseAgent.ps1
+│   │   ├── Set-CommonConfiguration.ps1
+│   │   └── Invoke-Sysprep.ps1
+│   └── roles/                     # Role-specific install scripts
+│       ├── Install-WebServer.ps1
+│       ├── Install-ADDS.ps1
+│       ├── Install-FileServices.ps1
+│       ├── Install-PrintServices.ps1
+│       ├── Install-DNS.ps1
+│       ├── Install-DHCP.ps1
+│       ├── Install-HyperV.ps1
+│       └── Install-ADCS.ps1
+└── examples/                      # Example variable files per role
+    ├── webserver.pkrvars.hcl
+    ├── adds.pkrvars.hcl
+    ├── fileservices.pkrvars.hcl
+    ├── printservices.pkrvars.hcl
+    ├── dns.pkrvars.hcl
+    ├── dhcp.pkrvars.hcl
+    ├── hyperv.pkrvars.hcl
+    └── adcs.pkrvars.hcl
 ```
 
-### Windows Server 2022 Standard Example
+### Building Role-Specific Images
 
-Create a file named `windows-server.auto.pkrvars.hcl` in the `packer/` directory:
+```bash
+cd packer
 
+# Set credentials (required)
+export PKR_VAR_connectwise_token="your-token"
+export PKR_VAR_winrm_password="SecurePassword123!"
+
+# Initialize Packer plugins (once)
+packer init .
+
+# Build specific roles
+packer build -only="*.adds" -var-file=examples/adds.pkrvars.hcl .
+packer build -only="*.dns" -var-file=examples/dns.pkrvars.hcl .
+packer build -only="*.dhcp" -var-file=examples/dhcp.pkrvars.hcl .
+packer build -only="*.fileservices" -var-file=examples/fileservices.pkrvars.hcl .
+packer build -only="*.printservices" -var-file=examples/printservices.pkrvars.hcl .
+packer build -only="*.hyperv" -var-file=examples/hyperv.pkrvars.hcl .
+packer build -only="*.adcs" -var-file=examples/adcs.pkrvars.hcl .
+packer build -only="*.webserver" -var-file=examples/webserver.pkrvars.hcl .
+```
+
+### ConnectWise Manage Agent
+
+All images include the ConnectWise Manage agent installed from a private winget repository.
+
+**Required Environment Variable:**
+```bash
+export PKR_VAR_connectwise_token="your-authentication-token"
+```
+
+The agent is installed using:
+```
+winget install --source https://myrepo.company.com --header "{'Token': '<token>'}" --silent
+```
+
+To skip agent installation, set in your `.pkrvars.hcl`:
 ```hcl
-# Azure Authentication (uses Azure CLI by default)
+install_connectwise_agent = false
+```
+
+### Example: Building a Windows Server 2022 ADDS Image
+
+1. Create or copy the example variables file:
+```bash
+cp examples/adds.pkrvars.hcl my-adds.auto.pkrvars.hcl
+```
+
+2. Edit the file with your settings:
+```hcl
+# Azure Authentication
 use_azure_cli_auth = true
 
 # Build Infrastructure
@@ -82,69 +169,69 @@ vm_size                   = "Standard_D2s_v3"
 # WinRM Communication
 communicator   = "winrm"
 winrm_username = "packer"
-winrm_password = "YourSecurePassword123!"  # Use a strong password
-winrm_timeout  = "10m"
+winrm_timeout  = "15m"
 winrm_use_ssl  = true
 winrm_insecure = true
 
-# Windows Server 2022 Standard Image
+# Windows Server 2022 Core
 image_publisher = "MicrosoftWindowsServer"
 image_offer     = "WindowsServer"
-image_sku       = "2022-datacenter"
+image_sku       = "2022-datacenter-core"
 os_type         = "Windows"
 
 # Output Image
-managed_image_name                = "WindowsServer2022-Standard"
+managed_image_name                = "WindowsServer2022-Core-ADDS"
 managed_image_resource_group_name = "packer-rg"
 image_name_prefix                 = "VM"
 
+# Server Role
+server_role               = "adds"
+install_connectwise_agent = true
+
 # Tags
 azure_tags = {
-  Project     = "Packer-Demo"
-  Owner       = "your-email@domain.com"
-  Application = "WebServer"
+  Project     = "Infrastructure"
+  Application = "DomainController"
+  Role        = "ADDS"
 }
 ```
 
-### Alternative Windows Server SKUs
+3. Build the image:
+```bash
+export PKR_VAR_connectwise_token="your-token"
+export PKR_VAR_winrm_password="SecurePassword123!"
 
-| SKU | Description |
-|-----|-------------|
-| `2022-datacenter` | Windows Server 2022 Datacenter (Desktop Experience) |
-| `2022-datacenter-core` | Windows Server 2022 Datacenter Core |
-| `2022-datacenter-smalldisk` | Windows Server 2022 with smaller OS disk |
-| `2022-datacenter-azure-edition` | Azure-optimised Windows Server 2022 |
-| `2019-datacenter` | Windows Server 2019 Datacenter |
+packer build -only="*.adds" -var-file=my-adds.auto.pkrvars.hcl .
+```
 
-### Packer Commands Reference
+### Special Requirements
+
+**Hyper-V Images:**
+- Require Azure VM sizes with nested virtualisation support
+- Use `Standard_D4s_v3` or larger (Dv3, Ev3, or newer series)
+- Default timeout increased to 20 minutes
+
+**ADDS/ADCS Images:**
+- Server roles are installed but NOT configured
+- Domain promotion or CA configuration must be performed post-deployment
+
+## Packer Commands Reference
 
 ```bash
 # Initialize plugins (required once)
 packer init .
 
-# Validate configuration syntax
-packer validate -var-file=<your-vars>.pkrvars.hcl .
-
-# Build with verbose output
-packer build -var-file=<your-vars>.pkrvars.hcl .
+# Validate a specific role
+packer validate -only="*.dns" -var-file=examples/dns.pkrvars.hcl .
 
 # Build with debug logging
-PACKER_LOG=1 packer build -var-file=<your-vars>.pkrvars.hcl .
+PACKER_LOG=1 packer build -only="*.dns" -var-file=examples/dns.pkrvars.hcl .
 
-# Build with specific variables
+# Build with variable overrides
 packer build \
-  -var "managed_image_name=MyCustomImage" \
-  -var "image_sku=2022-datacenter-core" \
-  -var-file=<your-vars>.pkrvars.hcl .
-```
-
-### Sensitive Variables
-
-For production use, pass sensitive values via environment variables:
-
-```bash
-export PKR_VAR_winrm_password="YourSecurePassword123!"
-packer build -var-file=<your-vars>.pkrvars.hcl .
+  -only="*.dns" \
+  -var "managed_image_name=CustomDNSImage" \
+  -var-file=examples/dns.pkrvars.hcl .
 ```
 
 ## Terraform Configuration
@@ -154,8 +241,6 @@ packer build -var-file=<your-vars>.pkrvars.hcl .
 ![Architecture](assets/Packer%20Demo.png)
 
 ### State File Configuration
-
-Configure backend storage in your `.auto.tfvars`:
 
 ```hcl
 lowerlevel_storage_account_name = "tfstorageaccount"
@@ -179,7 +264,6 @@ resource_groups = {
       CreatedBy    = "your-email@domain.com"
       Environment  = "dev"
       Project      = "Internal"
-      CustomerName = "Internal"
     }
   }
 }
@@ -200,9 +284,7 @@ networking_object = {
       virtual_network_rg = "packer-rg"
       address_space      = ["10.0.0.0/25"]
       enable_ddos_std    = false
-      tags = {
-        product = "packer"
-      }
+      tags = { product = "packer" }
     }
   }
   specialsubnets = {
@@ -247,202 +329,75 @@ networking_object = {
       nsg_inbound          = []
       nsg_outbound         = []
       route_entries        = []
-      tags = {
-        product = "packer"
-      }
+      tags = { product = "packer" }
     }
   }
   peerings = {}
 }
 ```
 
-### Public IP Configuration
+## Post-Deployment Configuration
 
-```hcl
-ip_suffix = "-pip"
+### ADDS (Domain Controller)
 
-IP_address_object = {
-  public = {
-    region1_bastion_ip = {
-      name                = "packer"
-      resource_group_name = "packer-rg"
-      location            = "australiaeast"
-      allocation_method   = "Static"
-      sku                 = "Standard"
-      ip_version          = "IPv4"
-      tags = {
-        product = "packer"
-      }
-    }
-  }
-}
-```
-
-### Test VM Configuration
-
-Deploy a VM from your custom image to verify the build:
-
-```hcl
-vm_suffix      = "-vm"
-os_disk_suffix = "-osdisk"
-disk_suffix    = "-disk"
-nic_suffix     = "-nic"
-
-vm_object = {
-  vms = {
-    region1_vm1 = {
-      name                          = "packer"
-      resource_group_name           = "packer-rg"
-      location                      = "australiaeast"
-      size                          = "Standard_D2s_v3"
-      os                            = "Windows"
-      delete_os_disk_on_termination = true
-      network_interface_ids         = "region1_vm1_nic"
-      admin_username                = "packeradm"
-      admin_password                = "P@ssw0rd1!"
-      os_profile = {
-        provision_vm_agent = true
-        license_type       = "Windows_Server"
-      }
-      storage_image_reference = {
-        publisher = "MicrosoftWindowsServer"
-        offer     = "WindowsServer"
-        sku       = "2022-Datacenter"
-        version   = "latest"
-      }
-      storage_os_disk = {
-        caching              = "ReadWrite"
-        create_option        = "FromImage"
-        storage_account_type = "Standard_LRS"
-        disk_size_gb         = "128"
-      }
-      boot_diagnostics = {
-        storage_account_uri = "region1_diagnostics_storage"
-      }
-      tags = {
-        product  = "packer"
-        role     = "packer demo"
-        location = "Australia East"
-      }
-    }
-  }
-  nics = {
-    region1_vm1_nic = {
-      name                = "packer"
-      resource_group_name = "packer-rg"
-      location            = "australiaeast"
-      ip_configuration = {
-        config_1 = {
-          name                          = "ip_config_1"
-          subnet_id                     = "region1_packer_subnet"
-          private_ip_address_allocation = "Dynamic"
-          public_ip_address_id          = null
-          primary                       = true
-        }
-      }
-      tags = {
-        product  = "packer"
-        role     = "packer demo"
-        location = "Australia East"
-      }
-    }
-  }
-  data_disks = {
-    region1_vm1_disk1 = {
-      name                 = "packer"
-      virtual_machine      = "region1_vm1"
-      resource_group_name  = "packer-rg"
-      location             = "australiaeast"
-      storage_account_type = "Premium_LRS"
-      create_option        = "Empty"
-      disk_size_gb         = 128
-      disk_letter          = "-F"
-      disk_count           = "01"
-      lun                  = "10"
-      caching              = "ReadWrite"
-      tags = {
-        product  = "packer"
-        role     = "packer demo"
-        location = "Australia East"
-      }
-    }
-  }
-}
-```
-
-## Customising the Image
-
-### Adding Software
-
-Edit `packer/scripts/webServer.ps1` to install additional software:
+After deploying a VM from the ADDS image:
 
 ```powershell
-# Install additional Windows features
-Install-WindowsFeature -Name NET-Framework-45-Core -IncludeManagementTools
+# Promote to new forest
+Install-ADDSForest -DomainName "domain.local" -InstallDns
 
-# Install software via Chocolatey
-Set-ExecutionPolicy Bypass -Scope Process -Force
-[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
-Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
-
-choco install -y 7zip
-choco install -y notepadplusplus
+# Or join existing domain as DC
+Install-ADDSDomainController -DomainName "domain.local" -InstallDns -Credential (Get-Credential)
 ```
 
-### Adding Multiple Provisioning Scripts
+### DHCP Server
 
-Add additional provisioners in `windows.pkr.hcl`:
+```powershell
+# Authorise in AD
+Add-DhcpServerInDC -DnsName "dhcp.domain.local" -IPAddress "10.0.0.2"
 
-```hcl
-build {
-  # ... existing configuration ...
+# Create scope
+Add-DhcpServerv4Scope -Name "LAN" -StartRange 10.0.0.100 -EndRange 10.0.0.200 -SubnetMask 255.255.255.0
 
-  provisioner "powershell" {
-    script = "${path.root}/scripts/webServer.ps1"
-  }
+# Set options
+Set-DhcpServerv4OptionValue -ScopeId 10.0.0.0 -Router 10.0.0.1 -DnsServer 10.0.0.2
+```
 
-  provisioner "powershell" {
-    script = "${path.root}/scripts/security-hardening.ps1"
-  }
+### ADCS (Certificate Authority)
 
-  provisioner "powershell" {
-    script = "${path.root}/scripts/install-monitoring.ps1"
-  }
+```powershell
+# Configure as Enterprise Root CA
+Install-AdcsCertificationAuthority -CAType EnterpriseRootCa -CACommonName "Corp-Root-CA" -KeyLength 4096 -HashAlgorithmName SHA256 -ValidityPeriod Years -ValidityPeriodUnits 10
 
-  # Sysprep provisioner (must be last)
-  provisioner "powershell" {
-    inline = [
-      # ... sysprep commands ...
-    ]
-  }
-}
+# Configure Web Enrollment
+Install-AdcsWebEnrollment
 ```
 
 ## Troubleshooting
 
-### Common Issues
-
 | Issue | Solution |
 |-------|----------|
-| WinRM connection timeout | Increase `winrm_timeout` value (e.g., `15m`) |
+| WinRM connection timeout | Increase `winrm_timeout` (e.g., `20m` for Hyper-V) |
 | Authentication failure | Verify `az login` session is active |
-| Resource group not found | Ensure Terraform infrastructure is deployed first |
-| Sysprep failure | Check Azure agent services are running |
+| Resource group not found | Deploy Terraform infrastructure first |
+| ConnectWise agent not installing | Check `PKR_VAR_connectwise_token` is set |
+| Hyper-V install fails | Use VM size with nested virtualisation (Dv3+) |
 
 ### Enable Debug Logging
 
 ```bash
 export PACKER_LOG=1
 export PACKER_LOG_PATH="packer-debug.log"
-packer build -var-file=<your-vars>.pkrvars.hcl .
+packer build -only="*.dns" -var-file=examples/dns.pkrvars.hcl .
 ```
 
 ## Security Considerations
 
-- Store sensitive values in environment variables or Azure Key Vault
-- Use strong passwords for WinRM (minimum 12 characters)
-- Review and customise the provisioning scripts for your security requirements
-- Consider using Azure Private Endpoints for production builds
+- Store `PKR_VAR_connectwise_token` and `PKR_VAR_winrm_password` securely
+- Use Azure Key Vault for production credential management
+- Review provisioning scripts before deployment
+- Use strong passwords (minimum 12 characters)
+- Consider Azure Private Endpoints for production builds
 
 ## License
 

@@ -141,7 +141,7 @@ variable "image_offer" {
 variable "image_sku" {
   type        = string
   description = "Azure Marketplace image SKU (e.g., 2022-datacenter, 2022-datacenter-core)"
-  default     = "2022-datacenter"
+  default     = "2022-datacenter-core"
 
   validation {
     condition     = can(regex("^[0-9]{4}-", var.image_sku))
@@ -206,5 +206,58 @@ variable "default_tags" {
   default = {
     ManagedBy   = "Packer"
     Environment = "non-prod"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# ConnectWise Manage Agent Variables
+# -----------------------------------------------------------------------------
+
+variable "connectwise_token" {
+  type        = string
+  description = "ConnectWise Manage agent authentication token for winget repository"
+  sensitive   = true
+  default     = null
+}
+
+variable "connectwise_repo_url" {
+  type        = string
+  description = "URL of the private winget repository for ConnectWise agent"
+  default     = "https://myrepo.company.com"
+
+  validation {
+    condition     = can(regex("^https://", var.connectwise_repo_url))
+    error_message = "ConnectWise repo URL must use HTTPS."
+  }
+}
+
+variable "install_connectwise_agent" {
+  type        = bool
+  description = "Whether to install ConnectWise Manage agent on the image"
+  default     = true
+}
+
+# -----------------------------------------------------------------------------
+# Server Role Configuration Variables
+# -----------------------------------------------------------------------------
+
+variable "server_role" {
+  type        = string
+  description = "Windows Server role identifier for the image"
+  default     = "base"
+
+  validation {
+    condition = contains([
+      "base",
+      "webserver",
+      "adds",
+      "fileservices",
+      "printservices",
+      "dns",
+      "dhcp",
+      "hyperv",
+      "adcs"
+    ], var.server_role)
+    error_message = "Server role must be one of: base, webserver, adds, fileservices, printservices, dns, dhcp, hyperv, adcs."
   }
 }
